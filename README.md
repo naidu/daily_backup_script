@@ -7,6 +7,8 @@ This script:
 - Logs all actions to `/var/log/daily_backup.log`.
 - Checks disk usage before and after the backup.
 - Sends notifications **on error** via **email** or **Slack** (configurable).
+- Provides detailed progress tracking during execution.
+- Includes comprehensive error handling for missing or empty folders.
 
 ---
 
@@ -17,6 +19,9 @@ To make sure everything works (backup, upload, alerts):
 ```bash
 ./backup.sh
 ```
+
+The script will display progress messages showing which step is being performed and which folder is currently being processed.
+
 ---
 
 ## 🔧 Configuration
@@ -46,6 +51,36 @@ Set how many backups to keep on the SFTP:
 ```bash
 KEEP_BACKUPS=5
 ```
+
+---
+
+## 🚨 Error Handling
+
+The script includes comprehensive error handling for:
+
+- Missing `folders.txt` file
+- Empty `folders.txt` file
+- Non-existent folders listed in `folders.txt`
+- No valid folders to backup
+- Archive creation failures
+- SFTP upload failures
+
+When an error occurs, the script will:
+- Log the error to the log file
+- Add the error to the summary file
+- Send notifications via email and/or Slack (if configured)
+- Exit with a non-zero status code
+
+---
+
+## 📊 Progress Tracking
+
+The script provides detailed progress information:
+
+- Shows which step is currently being performed (e.g., "Creating archive", "Uploading to SFTP")
+- Displays which folder is being processed (e.g., "Processing folder [2/5]: /path/to/folder")
+- Indicates whether each folder is valid or skipped
+- Shows a summary of included folders in the backup
 
 ---
 
@@ -147,6 +182,8 @@ To simulate an error:
 * Temporarily rename a folder listed in folders.txt
 
 * Or rename the SFTP key path
+
+* Or empty the folders.txt file
 
 Then run:
 
