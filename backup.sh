@@ -15,6 +15,11 @@ SFTP_DIR="/remote/backup/path"
 SFTP_KEY="/path/to/private_key"
 KEEP_BACKUPS=5
 
+# === Notification Configuration ===
+USE_SLACK=true               # Set to true to use Slack, false to use Email
+SLACK_WEBHOOK_URL="https://hooks.slack.com/services/your/webhook/url"
+
+USE_EMAIL=true               # Set to true to use Email, false to disable
 EMAIL_TO="you@example.com"
 EMAIL_SUBJECT_ERROR="Backup Failed: $DATE"
 
@@ -89,10 +94,17 @@ rm -f "$ARCHIVE_PATH"
 TOTAL_SIZE_AFTER=$(df -h / | tail -1)
 echo "Disk usage after backup: $TOTAL_SIZE_AFTER" >> "$SUMMARY_FILE"
 
-# === Email Notification on Error Only ===
+# === Send Notification on Error ===
 if [[ $ERROR_OCCURRED -ne 0 ]]; then
-    echo "Backup failed. Sending error notification email..." >> "$LOG_FILE"
-    cat "$SUMMARY_FILE" | mail -s "$EMAIL_SUBJECT_ERROR" "$EMAIL_TO"
+    echo "Backup failed. Sending alert..." >> "$LOG_FILE"
+
+    if [[ "$USE_SLACK" == "true" ]]; then
+        curl -X POST -H 'Content-type: application/json' --data "{"text":"$(cat $SUMMARY_FILE | sed 's/"/\"/g')"}" "$SLACK_WEBHOOK_URL"
+    fi
+
+    if [[ "$USE_EMAIL" == "true" ]]; then
+        cat "$SUMMARY_FILE" | mail -s "$EMAIL_SUBJECT_ERROR" "$EMAIL_TO"
+    fi
 fi
 
 echo "=== Backup completed at $(date +"%Y-%m-%d_%H-%M-%S") ===" >> "$LOG_FILE"
