@@ -1,0 +1,3 @@
+/etc/nginx
+/var/www/myapp
+/home/username/documents
