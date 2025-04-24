@@ -21,7 +21,7 @@ SLACK_WEBHOOK_URL="https://hooks.slack.com/services/your/webhook/url"
 
 USE_EMAIL=true               # Set to true to use Email, false to disable
 EMAIL_TO="you@example.com"
-EMAIL_SUBJECT_ERROR="Backup Failed: $DATE"
+EMAIL_SUBJECT_ERROR="Backup Failed: $DATE - Missing Items"
 
 # === Progress tracking ===
 TOTAL_STEPS=5
@@ -85,38 +85,38 @@ fi
 
 # Create a temporary file to store valid folders
 TEMP_FOLDERS_FILE=$(mktemp)
-echo "Valid folders to backup:" >> "$LOG_FILE"
+echo "Valid items to backup:" >> "$LOG_FILE"
 
 # Process folders.txt and create a list of valid folders
-update_progress "Processing folders from folders.txt"
-TOTAL_FOLDERS=$(wc -l < "$FOLDER_LIST")
-CURRENT_FOLDER=0
+update_progress "Processing items from folders.txt"
+TOTAL_ITEMS=$(wc -l < "$FOLDER_LIST")
+CURRENT_ITEM=0
 
-while read -r FOLDER; do
+while read -r ITEM; do
     # Skip empty lines
-    if [[ -z "$FOLDER" ]]; then
+    if [[ -z "$ITEM" ]]; then
         continue
     fi
     
     # Trim whitespace
-    FOLDER=$(echo "$FOLDER" | xargs)
-    CURRENT_FOLDER=$((CURRENT_FOLDER + 1))
+    ITEM=$(echo "$ITEM" | xargs)
+    CURRENT_ITEM=$((CURRENT_ITEM + 1))
     
-    echo "Processing folder [$CURRENT_FOLDER/$TOTAL_FOLDERS]: $FOLDER" | tee -a "$LOG_FILE"
+    echo "Processing item [$CURRENT_ITEM/$TOTAL_ITEMS]: $ITEM" | tee -a "$LOG_FILE"
     
-    if [[ -d "$FOLDER" ]]; then
-        echo "$FOLDER" >> "$TEMP_FOLDERS_FILE"
-        echo "  - $FOLDER (valid)" >> "$LOG_FILE"
+    if [[ -e "$ITEM" ]]; then
+        echo "$ITEM" >> "$TEMP_FOLDERS_FILE"
+        echo "  - $ITEM (valid)" >> "$LOG_FILE"
     else
-        echo "  - $FOLDER (skipped - does not exist)" >> "$LOG_FILE"
-        echo "Skipping non-existent folder: $FOLDER" >> "$SUMMARY_FILE"
+        echo "  - $ITEM (skipped - does not exist)" >> "$LOG_FILE"
+        echo "Skipping non-existent item: $ITEM" >> "$SUMMARY_FILE"
     fi
 done < "$FOLDER_LIST"
 
-# Check if any valid folders were found
+# Check if any valid items were found
 if [[ ! -s "$TEMP_FOLDERS_FILE" ]]; then
-    echo "Error: No valid folders found to backup." >> "$LOG_FILE"
-    echo "Error: No valid folders found to backup." >> "$SUMMARY_FILE"
+    echo "Error: No valid items found to backup." >> "$LOG_FILE"
+    echo "Error: No valid items found to backup." >> "$SUMMARY_FILE"
     ERROR_OCCURRED=1
     echo "Backup failed. Sending alert..." >> "$LOG_FILE"
     
@@ -134,15 +134,15 @@ if [[ ! -s "$TEMP_FOLDERS_FILE" ]]; then
 fi
 
 # === Create archive ===
-update_progress "Creating archive with valid folders"
-echo "Creating archive $ARCHIVE_PATH with folders listed in $FOLDER_LIST" >> "$LOG_FILE"
+update_progress "Creating archive with valid items"
+echo "Creating archive $ARCHIVE_PATH with items listed in $FOLDER_LIST" >> "$LOG_FILE"
 
-# Use tar with --files-from to ensure only specified folders are included
+# Use tar with --files-from to ensure only specified items are included
 if tar -czf "$ARCHIVE_PATH" --files-from="$TEMP_FOLDERS_FILE"; then
     echo "Archive created: $ARCHIVE_NAME" >> "$SUMMARY_FILE"
-    echo "Archive created successfully with the following folders:" >> "$SUMMARY_FILE"
-    while read -r FOLDER; do
-        echo "  - $FOLDER" >> "$SUMMARY_FILE"
+    echo "Archive created successfully with the following items:" >> "$SUMMARY_FILE"
+    while read -r ITEM; do
+        echo "  - $ITEM" >> "$SUMMARY_FILE"
     done < "$TEMP_FOLDERS_FILE"
 else
     echo "Error: Failed to create archive." >> "$LOG_FILE"
