@@ -157,36 +157,85 @@ rm -f "$TEMP_FOLDERS_FILE"
 if [[ $ERROR_OCCURRED -eq 0 ]]; then
     update_progress "Uploading archive to SFTP server"
     echo "Uploading $ARCHIVE_NAME to SFTP..." >> "$LOG_FILE"
-    if ! sftp -i "$SFTP_KEY" "$SFTP_USER@$SFTP_HOST" <<EOF
+    
+    # Create a temporary file to store SFTP output
+    SFTP_OUTPUT=$(mktemp)
+    
+    if ! sftp -i "$SFTP_KEY" "$SFTP_USER@$SFTP_HOST" <<EOF > "$SFTP_OUTPUT" 2>&1
 cd $SFTP_DIR
 put $ARCHIVE_PATH
-ls -1 full_backup_*.tar.gz
+ls -l $ARCHIVE_NAME
 EOF
     then
         echo "Error: SFTP upload failed." >> "$LOG_FILE"
-        echo "Error: Failed to upload to SFTP." >> "$SUMMARY_FILE"
+        echo "Error: Failed to upload to SFTP. Details:" >> "$SUMMARY_FILE"
+        cat "$SFTP_OUTPUT" >> "$SUMMARY_FILE"
         ERROR_OCCURRED=1
     else
-        echo "Upload successful." >> "$SUMMARY_FILE"
+        # Verify the file exists on remote server
+        if ! sftp -i "$SFTP_KEY" "$SFTP_USER@$SFTP_HOST" <<EOF > "$SFTP_OUTPUT" 2>&1
+cd $SFTP_DIR
+ls -l $ARCHIVE_NAME
+EOF
+        then
+            echo "Error: Cannot verify uploaded file on SFTP server." >> "$LOG_FILE"
+            echo "Error: Cannot verify uploaded file on SFTP server. Details:" >> "$SUMMARY_FILE"
+            cat "$SFTP_OUTPUT" >> "$SUMMARY_FILE"
+            ERROR_OCCURRED=1
+        else
+            if grep -q "$ARCHIVE_NAME" "$SFTP_OUTPUT"; then
+                echo "Upload verified successfully. File exists on SFTP server." >> "$SUMMARY_FILE"
+                echo "Remote file details:" >> "$SUMMARY_FILE"
+                grep "$ARCHIVE_NAME" "$SFTP_OUTPUT" >> "$SUMMARY_FILE"
+            else
+                echo "Error: Upload appears to have failed - file not found on SFTP server." >> "$LOG_FILE"
+                echo "Error: Upload verification failed - file not found on SFTP server." >> "$SUMMARY_FILE"
+                ERROR_OCCURRED=1
+            fi
+        fi
     fi
+    
+    rm -f "$SFTP_OUTPUT"
 fi
 
 # === Cleanup remote backups ===
 if [[ $ERROR_OCCURRED -eq 0 ]]; then
     update_progress "Cleaning up old backups on remote server"
     echo "Cleaning up old backups on remote..." >> "$LOG_FILE"
-    sftp -i "$SFTP_KEY" "$SFTP_USER@$SFTP_HOST" <<EOF | awk '{print $NF}' | grep "^full_backup_" | sort -r | tail -n +$(($KEEP_BACKUPS + 1)) > /tmp/old_backups.txt
+    
+    # Create a temporary file to store cleanup output
+    CLEANUP_OUTPUT=$(mktemp)
+    
+    if ! sftp -i "$SFTP_KEY" "$SFTP_USER@$SFTP_HOST" <<EOF > "$CLEANUP_OUTPUT" 2>&1
 cd $SFTP_DIR
-ls -1
+ls -1 full_backup_*.tar.gz
 EOF
-
-    while read -r OLD_BACKUP; do
-        echo "Removing $OLD_BACKUP from SFTP..." >> "$LOG_FILE"
-        sftp -i "$SFTP_KEY" "$SFTP_USER@$SFTP_HOST" <<EOF
+    then
+        echo "Error: Failed to list remote backups for cleanup." >> "$LOG_FILE"
+        echo "Error: Failed to list remote backups for cleanup. Details:" >> "$SUMMARY_FILE"
+        cat "$CLEANUP_OUTPUT" >> "$SUMMARY_FILE"
+        ERROR_OCCURRED=1
+    else
+        awk '{print $NF}' "$CLEANUP_OUTPUT" | grep "^full_backup_" | sort -r | tail -n +$(($KEEP_BACKUPS + 1)) > /tmp/old_backups.txt
+        
+        while read -r OLD_BACKUP; do
+            echo "Removing $OLD_BACKUP from SFTP..." >> "$LOG_FILE"
+            if ! sftp -i "$SFTP_KEY" "$SFTP_USER@$SFTP_HOST" <<EOF > "$CLEANUP_OUTPUT" 2>&1
 cd $SFTP_DIR
 rm $OLD_BACKUP
 EOF
-    done < /tmp/old_backups.txt
+            then
+                echo "Error: Failed to remove old backup $OLD_BACKUP" >> "$LOG_FILE"
+                echo "Error: Failed to remove old backup $OLD_BACKUP. Details:" >> "$SUMMARY_FILE"
+                cat "$CLEANUP_OUTPUT" >> "$SUMMARY_FILE"
+                ERROR_OCCURRED=1
+            else
+                echo "Successfully removed old backup: $OLD_BACKUP" >> "$SUMMARY_FILE"
+            fi
+        done < /tmp/old_backups.txt
+    fi
+    
+    rm -f "$CLEANUP_OUTPUT"
 fi
 
 rm -f "$ARCHIVE_PATH"
