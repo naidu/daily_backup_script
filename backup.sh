@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # === Configuration ===
-FOLDER_LIST="./folders.txt"
-BACKUP_DIR="/tmp/backups"
-LOG_FILE="/var/log/daily_backup.log"
+SCRIPT_HOME="/home/naidu/backup"
+FOLDER_LIST="$SCRIPT_HOME/folders.txt"
+BACKUP_DIR="$SCRIPT_HOME/tmp/backups"
+LOG_FILE="$SCRIPT_HOME/log/daily_backup.log"
 SUMMARY_FILE="/tmp/backup_summary.txt"
 DATE=$(date +"%Y-%m-%d_%H-%M-%S")
 ARCHIVE_NAME="full_backup_${DATE}.tar.gz"
@@ -16,7 +17,7 @@ SFTP_KEY="/path/to/private_key"
 KEEP_BACKUPS=5
 
 # === Notification Configuration ===
-USE_SLACK=true               # Set to true to use Slack, false to use Email
+USE_SLACK=false               # Set to true to use Slack, false to use Email
 SLACK_WEBHOOK_URL="https://hooks.slack.com/services/your/webhook/url"
 
 USE_EMAIL=true               # Set to true to use Email, false to disable
